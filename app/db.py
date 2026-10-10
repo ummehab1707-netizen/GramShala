@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,25 +42,51 @@ def init_db() -> None:
             );
             """
         )
+        # Migration: older databases have no "answers" column.
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(attempts)")}
+        if "answers" not in cols:
+            conn.execute("ALTER TABLE attempts ADD COLUMN answers TEXT")
 
 
 def upsert_student(student_id: str, name: str) -> None:
     with connect() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO students (id, name, joined_at) VALUES (?, ?, ?)",
-            (student_id, name.strip(), utcnow()),
+            (student_id, name.strip() or "Student", utcnow()),
         )
 
 
-def save_attempt(attempt_id: str, student_id: str, lesson_id: str, score: int, total: int) -> None:
+def save_attempt(
+    attempt_id: str,
+    student_id: str,
+    lesson_id: str,
+    score: int,
+    total: int,
+    answers: list[int] | None = None,
+) -> None:
     with connect() as conn:
         conn.execute(
             """
-            INSERT INTO attempts (id, student_id, lesson_id, score, total, synced, completed_at)
-            VALUES (?, ?, ?, ?, ?, 0, ?)
+            INSERT INTO attempts (id, student_id, lesson_id, score, total, synced, completed_at, answers)
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?)
             """,
-            (attempt_id, student_id, lesson_id, score, total, utcnow()),
+            (attempt_id, student_id, lesson_id, score, total, utcnow(), json.dumps(answers or [])),
         )
+
+
+def all_attempts() -> list[dict]:
+    """Every attempt, oldest first, with the student's name."""
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT a.id, a.student_id, s.name, a.lesson_id, a.score, a.total,
+                   a.answers, a.synced, a.completed_at
+            FROM attempts a
+            JOIN students s ON s.id = a.student_id
+            ORDER BY a.completed_at ASC, a.rowid ASC
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def roster() -> list[dict]:

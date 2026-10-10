@@ -139,3 +139,22 @@ button.danger { background: var(--clay); color: white; }
 .lesson-pick.on { outline: 2px solid var(--leaf); }
 .progress-bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 10px 0 16px; }
 .progress-bar span { display: block; height: 100%; background: var(--marigold); }
+
+/* --- additions: analytics, QR, language chips, Telugu/Hindi font fallbacks --- */
+body {
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, "Noto Serif Telugu", "Noto Sans Telugu", "Noto Sans Devanagari", serif;
+}
+.join-row { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+.join-row .muted { margin: 0; }
+.qr { width: 112px; height: 112px; border-radius: 10px; background: #fff; flex: none; }
+.linkbtn { display: inline-block; text-decoration: none; border-radius: 999px; padding: 11px 16px; font-weight: 650; font-family: ui-sans-serif, system-ui, sans-serif; }
+.analytics { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.analytics h4 { margin: 16px 0 6px; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; }
+.stat-row { display: flex; gap: 10px; margin-top: 10px; }
+.stat { flex: 1; background: #fffdf7; border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-family: ui-sans-serif, system-ui, sans-serif; }
+.stat b { display: block; font-size: 1.6rem; }
+.stat span { color: var(--muted); font-size: 0.85rem; }
+.missed { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.missed p { margin: 0 0 2px; }
+.qitem { margin: 14px 0; }
+button.chip, .choice, .lesson-pick, button.primary, button.ghost { min-height: 44px; }
