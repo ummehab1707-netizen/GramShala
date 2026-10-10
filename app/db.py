@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,16 +14,20 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def connect() -> sqlite3.Connection:
+@contextmanager
+def get_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
-    with connect() as conn:
+    with get_db() as conn:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS students (
@@ -42,18 +47,18 @@ def init_db() -> None:
             );
             """
         )
-        # Migration: older databases have no "answers" column.
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(attempts)")}
         if "answers" not in cols:
             conn.execute("ALTER TABLE attempts ADD COLUMN answers TEXT")
 
 
 def upsert_student(student_id: str, name: str) -> None:
-    with connect() as conn:
+    with get_db() as conn:
         conn.execute(
             "INSERT OR IGNORE INTO students (id, name, joined_at) VALUES (?, ?, ?)",
             (student_id, name.strip() or "Student", utcnow()),
         )
+        conn.commit()
 
 
 def save_attempt(
@@ -64,7 +69,7 @@ def save_attempt(
     total: int,
     answers: list[int] | None = None,
 ) -> None:
-    with connect() as conn:
+    with get_db() as conn:
         conn.execute(
             """
             INSERT INTO attempts (id, student_id, lesson_id, score, total, synced, completed_at, answers)
@@ -72,11 +77,11 @@ def save_attempt(
             """,
             (attempt_id, student_id, lesson_id, score, total, utcnow(), json.dumps(answers or [])),
         )
+        conn.commit()
 
 
 def all_attempts() -> list[dict]:
-    """Every attempt, oldest first, with the student's name."""
-    with connect() as conn:
+    with get_db() as conn:
         rows = conn.execute(
             """
             SELECT a.id, a.student_id, s.name, a.lesson_id, a.score, a.total,
@@ -90,7 +95,7 @@ def all_attempts() -> list[dict]:
 
 
 def roster() -> list[dict]:
-    with connect() as conn:
+    with get_db() as conn:
         rows = conn.execute(
             """
             SELECT s.id, s.name, s.joined_at,
@@ -107,12 +112,13 @@ def roster() -> list[dict]:
 
 
 def unsynced_count() -> int:
-    with connect() as conn:
+    with get_db() as conn:
         row = conn.execute("SELECT COUNT(*) AS n FROM attempts WHERE synced = 0").fetchone()
         return int(row["n"]) if row else 0
 
 
 def mark_synced() -> int:
-    with connect() as conn:
+    with get_db() as conn:
         cur = conn.execute("UPDATE attempts SET synced = 1 WHERE synced = 0")
+        conn.commit()
         return cur.rowcount

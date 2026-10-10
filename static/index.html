@@ -2,13 +2,797 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#1c2a22" />
-  <title>GramShala — classroom without Wi‑Fi</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GramShala - Offline Classroom</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    :root {
+      --bg-beige: #f6f0e6;
+      --card-bg: #ffffff;
+      --border-beige: #e5d8c5;
+      --text-espresso: #2a1b12;
+      --primary-brown: #42291a;
+      --primary-hover: #2e1c11;
+      --accent-beige: #e8dbc9;
+    }
+    body { background-color: var(--bg-beige); color: var(--text-espresso); font-family: system-ui, -apple-system, sans-serif; }
+    .card { background: var(--card-bg); border: 1px solid var(--border-beige); border-radius: 1.25rem; }
+    .btn-brown { background-color: var(--primary-brown); color: #fcf9f5; }
+    .btn-brown:hover { background-color: var(--primary-hover); }
+    .btn-beige { background-color: #e8dbc9; color: #2a1b12; }
+    .btn-beige:hover { background-color: #d8c8b2; }
+    
+    #qr-reader { color: #fdfbf7 !important; }
+    #qr-reader a { color: #f4d1ad !important; text-decoration: underline; }
+    #qr-reader button { background-color: #e8dbc9 !important; color: #2a1b12 !important; border-radius: 0.5rem; padding: 0.5rem 1rem; font-weight: bold; }
+  </style>
 </head>
-<body>
-  <div id="app"></div>
-  <script src="/static/app.js"></script>
+<body class="min-h-screen pb-12">
+
+  <!-- TOP HEADER -->
+  <header class="max-w-4xl mx-auto p-4 flex items-center justify-between border-b border-[#e2d4c0]">
+    <div class="flex items-center space-x-3">
+      <button id="top-back-btn" onclick="goBack()" class="hidden btn-beige px-3 py-1.5 rounded-lg text-sm font-bold flex items-center space-x-1 cursor-pointer transition">
+        <span>←</span>
+        <span>Back</span>
+      </button>
+
+      <div class="flex items-center space-x-2 cursor-pointer" onclick="goHome()">
+        <span class="text-2xl font-bold text-[#3d2415]">GramShala</span>
+        <span class="text-xs bg-[#e8dbc9] text-[#4d3321] px-2.5 py-0.5 rounded-full font-bold">Offline Hub</span>
+      </div>
+    </div>
+    <div id="header-user" class="text-sm font-bold text-[#5c402e]"></div>
+  </header>
+
+  <main id="app" class="max-w-4xl mx-auto p-4 mt-4">
+    <!-- Dynamic Content -->
+  </main>
+
+  <script>
+    let appData = null;
+    let role = null; // 'teacher' | 'student'
+    let selectedClass = null; // 'Class 10', 'Class 9', 'Class 8', 'Class 7', 'Class 6'
+    let studentName = localStorage.getItem('gs_name') || '';
+    let studentId = localStorage.getItem('gs_id') || '';
+    let activeTab = 'subjects'; // 'subjects' | 'quiz' | 'attempts'
+    let selectedSubject = null; // e.g. 'Math', 'Science', 'Physics'
+    let selectedLesson = null; // lesson object
+    let currentQuizIndex = 0;
+    let userAnswers = {};
+    let myAttempts = JSON.parse(localStorage.getItem('gs_attempts') || '[]');
+    let html5QrcodeScanner = null;
+
+    const SUBJECT_METADATA = {
+      'Math': { name: 'Mathematics', hi: 'गणित', color: 'bg-[#ebd2b9] text-[#3d220f]' },
+      'Science': { name: 'General Science', hi: 'सामान्य विज्ञान', color: 'bg-[#dce3ca] text-[#253813]' },
+      'Physics': { name: 'Physical Science / Physics', hi: 'भौतिक विज्ञान', color: 'bg-[#f0cfb8] text-[#4a1c0a]' },
+      'Biology': { name: 'Biological Science / Biology', hi: 'जीव विज्ञान', color: 'bg-[#dce3ca] text-[#253813]' },
+      'English': { name: 'English', hi: 'अंग्रेज़ी', color: 'bg-[#e2cac0] text-[#3d1a10]' },
+      'Social': { name: 'Social Studies', hi: 'सामाजिक अध्ययन', color: 'bg-[#ebd8b7] text-[#422c0b]' },
+      'Hindi': { name: 'Hindi (द्वितीय भाषा)', hi: 'हिंदी', color: 'bg-[#eecfba] text-[#421d0a]' }
+    };
+
+    // CLASSES IN DECREASING ORDER (10 TO 6)
+    const CLASSES_LIST = [
+      { id: 'Class 10', label: 'Class 10', hi: 'कक्षा 10', desc: 'Complete Board Syllabus & Practice Quizzes' },
+      { id: 'Class 9', label: 'Class 9', hi: 'कक्षा 9', desc: 'Board Foundation Concepts & Lessons' },
+      { id: 'Class 8', label: 'Class 8', hi: 'कक्षा 8', desc: 'Advanced Middle School Curriculum' },
+      { id: 'Class 7', label: 'Class 7', hi: 'कक्षा 7', desc: 'Integrated General Science & Mathematics' },
+      { id: 'Class 6', label: 'Class 6', hi: 'कक्षा 6', desc: 'Fundamental Concepts & Integrated Science' }
+    ];
+
+    async function init() {
+      try {
+        const res = await fetch('/api/bootstrap');
+        appData = await res.json();
+        render();
+      } catch (err) {
+        document.getElementById('app').innerHTML = `<div class="p-4 text-red-800 card">Failed to connect to GramShala Hub. Server starting...</div>`;
+      }
+    }
+
+    function goBack() {
+      stopCameraScanner();
+      if (selectedLesson) {
+        if (activeTab === 'quiz' && currentQuizIndex > 0) {
+          currentQuizIndex--;
+        } else {
+          selectedLesson = null;
+          currentQuizIndex = 0;
+          userAnswers = {};
+        }
+      } else if (selectedSubject) {
+        selectedSubject = null;
+      } else if (selectedClass) {
+        selectedClass = null;
+      } else if (role) {
+        role = null;
+        selectedClass = null;
+        selectedSubject = null;
+        selectedLesson = null;
+      }
+      render();
+    }
+
+    function goHome() {
+      stopCameraScanner();
+      role = null;
+      selectedClass = null;
+      selectedSubject = null;
+      selectedLesson = null;
+      currentQuizIndex = 0;
+      userAnswers = {};
+      render();
+    }
+
+    function render() {
+      const container = document.getElementById('app');
+      const backBtn = document.getElementById('top-back-btn');
+      
+      if (role !== null) backBtn.classList.remove('hidden');
+      else backBtn.classList.add('hidden');
+
+      if (!role) {
+        document.getElementById('header-user').innerText = '';
+        renderRoleSelection(container);
+        return;
+      }
+
+      if (role === 'teacher') {
+        document.getElementById('header-user').innerText = '👨‍🏫 Teacher Hub';
+        renderTeacherView(container);
+        return;
+      }
+
+      if (role === 'student') {
+        if (!selectedClass) {
+          document.getElementById('header-user').innerText = '🎓 Student Portal';
+          renderClassSelection(container);
+        } else if (!studentId) {
+          document.getElementById('header-user').innerText = `🎓 ${selectedClass}`;
+          renderStudentLogin(container);
+        } else {
+          document.getElementById('header-user').innerText = `🎓 ${studentName} (${selectedClass})`;
+          renderStudentHub(container);
+        }
+      }
+    }
+
+    function setRole(r) { role = r; selectedClass = null; render(); }
+
+    function renderRoleSelection(container) {
+      container.innerHTML = `
+        <div class="space-y-6 max-w-3xl mx-auto mt-4">
+          <div class="text-center space-y-2">
+            <h1 class="text-4xl font-serif font-bold text-[#2a1b12]">GramShala Offline Classroom</h1>
+            <p class="text-[#684f3e] text-lg">Zero-Data Educational Platform for Rural Class 10–6 Students</p>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div class="card p-6 border-2 border-[#1c120c] bg-[#1a100a] text-white flex flex-col justify-between shadow-2xl rounded-2xl transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl">
+              <div class="space-y-3">
+                <h2 class="text-3xl font-bold text-[#fdfbf7]">I'm a Student</h2>
+                <p class="text-[#e2d4c0] text-base leading-relaxed">Select your class, explore subjects, read notes offline, and practice chapter quizzes.</p>
+              </div>
+              <button onclick="setRole('student')" class="w-full btn-beige mt-8 p-4 rounded-xl font-bold text-lg flex items-center justify-center space-x-2 cursor-pointer shadow-md text-[#2a1b12] hover:bg-white transition-colors">
+                <span>Start Learning</span>
+                <span>→</span>
+              </button>
+            </div>
+
+            <div class="card p-6 border-2 border-[#1c120c] bg-[#1a100a] text-white flex flex-col justify-between shadow-2xl rounded-2xl transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl">
+              <div class="space-y-3">
+                <h2 class="text-3xl font-bold text-[#fdfbf7]">I'm a Teacher</h2>
+                <p class="text-[#e2d4c0] text-base leading-relaxed">Share learning resources over local Wi-Fi and scan student result QR codes with camera.</p>
+              </div>
+              <button onclick="setRole('teacher')" class="w-full btn-beige mt-8 p-4 rounded-xl font-bold text-lg flex items-center justify-center space-x-2 cursor-pointer shadow-md text-[#2a1b12] hover:bg-white transition-colors">
+                <span>Open Teacher Hub</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- CLASS SELECTION PAGE (DECREASING ORDER 10 TO 6 & NO INNER IMAGE BOXES) ---
+    function renderClassSelection(container) {
+      container.innerHTML = `
+        <div class="space-y-6 max-w-3xl mx-auto mt-2">
+          <div class="text-center space-y-2">
+            <h2 class="text-3xl font-bold text-[#2a1b12]">Select Your Class</h2>
+            <p class="text-[#684f3e] text-md">अपनी कक्षा चुनें to access syllabus, video lessons & quizzes</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 pt-3">
+            ${CLASSES_LIST.map(c => `
+              <div onclick="selectClass('${c.id}')" class="card p-6 bg-[#1a100a] text-white border-2 border-[#3a2517] shadow-lg flex flex-col justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1.5 hover:shadow-2xl hover:border-[#f4d1ad] rounded-2xl">
+                <div class="space-y-2">
+                  <span class="text-xs font-bold uppercase tracking-wider text-[#f4d1ad] bg-[#3a2517] px-3 py-1 rounded-full border border-[#523826]">${c.hi}</span>
+                  <h3 class="text-3xl font-bold text-[#fdfbf7] pt-2">${c.label}</h3>
+                  <p class="text-xs text-[#e2d4c0] pt-1">${c.desc}</p>
+                </div>
+
+                <div class="mt-8 pt-3 border-t border-[#3a2517] flex items-center justify-between text-sm font-bold text-[#f4d1ad]">
+                  <span>Explore Class</span>
+                  <span>→</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function selectClass(c) {
+      selectedClass = c;
+      render();
+    }
+
+    function renderStudentLogin(container) {
+      container.innerHTML = `
+        <div class="max-w-md mx-auto card p-6 space-y-4 mt-8 border-2 border-[#d0bea7]">
+          <div class="bg-[#ebdcd0] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-[#42291a] inline-block">
+            ${selectedClass}
+          </div>
+          <h2 class="text-2xl font-bold text-[#2a1b12]">Student Registration</h2>
+          <p class="text-sm text-[#684f3e]">Enter your name to track test marks offline for ${selectedClass}</p>
+          <input type="text" id="nameInput" placeholder="Enter Full Name" class="w-full p-3.5 border border-[#d6c1a8] rounded-xl text-lg bg-[#fdfbf7]" value="${studentName}">
+          <button onclick="submitStudentJoin()" class="w-full btn-brown p-3.5 rounded-xl font-bold text-lg cursor-pointer">Start Learning →</button>
+        </div>
+      `;
+    }
+
+    async function submitStudentJoin() {
+      const val = document.getElementById('nameInput').value.trim();
+      if (!val) return alert('Please enter your name');
+      studentName = val;
+      try {
+        const res = await fetch('/api/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: studentName, className: selectedClass })
+        });
+        const data = await res.json();
+        studentId = data.studentId;
+      } catch (err) {
+        studentId = 'off-' + Math.random().toString(36).substring(2, 9);
+      }
+      localStorage.setItem('gs_name', studentName);
+      localStorage.setItem('gs_id', studentId);
+      render();
+    }
+
+    function renderStudentHub(container) {
+      container.innerHTML = `
+        <div class="flex justify-center mb-6">
+          <div class="inline-flex flex-wrap justify-center gap-3 p-1.5 bg-[#e8dbc9]/40 rounded-2xl border border-[#e2d4c0]">
+            <button onclick="switchTab('subjects')" class="px-6 py-3 font-bold text-base rounded-xl cursor-pointer transition-all duration-200 shadow-sm ${activeTab==='subjects' ? 'bg-[#1a100a] text-white border-2 border-[#1a100a]' : 'bg-white/80 text-[#42291a] border-2 border-[#e2d4c0] hover:bg-[#e8dbc9] hover:border-[#42291a] hover:-translate-y-0.5'}">
+              Subjects
+            </button>
+            <button onclick="switchTab('quiz')" class="px-6 py-3 font-bold text-base rounded-xl cursor-pointer transition-all duration-200 shadow-sm ${activeTab==='quiz' ? 'bg-[#1a100a] text-white border-2 border-[#1a100a]' : 'bg-white/80 text-[#42291a] border-2 border-[#e2d4c0] hover:bg-[#e8dbc9] hover:border-[#42291a] hover:-translate-y-0.5'}">
+              Quiz
+            </button>
+            <button onclick="switchTab('attempts')" class="px-6 py-3 font-bold text-base rounded-xl cursor-pointer transition-all duration-200 shadow-sm ${activeTab==='attempts' ? 'bg-[#1a100a] text-white border-2 border-[#1a100a]' : 'bg-white/80 text-[#42291a] border-2 border-[#e2d4c0] hover:bg-[#e8dbc9] hover:border-[#42291a] hover:-translate-y-0.5'}">
+              Attempted Quizzes
+            </button>
+          </div>
+        </div>
+
+        <div id="tab-content"></div>
+      `;
+
+      const content = document.getElementById('tab-content');
+
+      if (selectedLesson) {
+        if (activeTab === 'subjects') renderLessonView(content);
+        else renderStepByStepQuiz(content);
+        return;
+      }
+
+      if (activeTab === 'subjects' || activeTab === 'quiz') {
+        if (!selectedSubject) renderSubjectGrid(content);
+        else renderSubjectLessons(content);
+      } else if (activeTab === 'attempts') {
+        renderAttemptsList(content);
+      }
+    }
+
+    function switchTab(t) {
+      activeTab = t;
+      selectedSubject = null;
+      selectedLesson = null;
+      currentQuizIndex = 0;
+      userAnswers = {};
+      render();
+    }
+
+    // --- SUBJECT CARDS (CLASSES 6 & 7 SHOW "SCIENCE" INSTEAD OF PHYSICS/BIOLOGY) ---
+    function renderSubjectGrid(container) {
+      let subjects = [];
+      if (selectedClass === 'Class 6' || selectedClass === 'Class 7') {
+        subjects = ['Math', 'Science', 'English', 'Social', 'Hindi'];
+      } else {
+        subjects = ['Math', 'Physics', 'Biology', 'English', 'Social', 'Hindi'];
+      }
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-[#2a1b12]">${activeTab === 'subjects' ? 'Select a Subject to Learn' : 'Select a Subject for Practice Quiz'}</h2>
+            <span class="text-xs bg-[#e8dbc9] text-[#4d3321] px-3 py-1 rounded-full font-bold">${selectedClass}</span>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${subjects.map(s => {
+              const meta = SUBJECT_METADATA[s] || { name: s, hi: s, color: 'bg-[#ebd2b9] text-[#3d220f]' };
+              const count = appData.lessons.filter(l => l.class === selectedClass && l.subject.en === s).length;
+              return `
+                <div onclick="selectSubject('${s}')" class="card p-5 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-[#42291a] flex items-center justify-between">
+                  <div>
+                    <h3 class="text-xl font-bold text-[#2a1b12]">${meta.name}</h3>
+                    <p class="text-sm text-[#684f3e]">${meta.hi} •${count} Lessons</p>
+                  </div>
+                  <span class="text-sm font-bold text-[#42291a] bg-[#e8dbc9] px-3 py-1 rounded-lg">View →</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function selectSubject(s) { selectedSubject = s; render(); }
+
+    function renderSubjectLessons(container) {
+      const meta = SUBJECT_METADATA[selectedSubject] || { name: selectedSubject, hi: selectedSubject, color: 'bg-[#ebd2b9]' };
+      const lessons = appData.lessons.filter(l => l.class === selectedClass && l.subject.en === selectedSubject);
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          <div class="p-4 rounded-xl ${meta.color}">
+            <h2 class="text-2xl font-bold">${meta.name} (${selectedClass})</h2>
+            <p class="text-sm opacity-90">${lessons.length} Chapters Available</p>
+          </div>
+
+          <div class="space-y-4">
+            ${lessons.length === 0 ? `
+              <div class="card p-6 text-center text-[#684f3e]">
+                No lessons found for this subject.
+              </div>
+            ` : lessons.map((l, i) => {
+              const attempt = myAttempts.find(a => a.lessonId === l.id);
+              const isAttempted = !!attempt;
+
+              return `
+                <div class="card p-5 bg-[#1a100a] text-white border-2 border-[#3a2517] shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#523826]">
+                  <div class="space-y-2 max-w-xl">
+                    <span class="text-xs font-bold uppercase tracking-wider text-[#f4d1ad] bg-[#3a2517] px-3 py-1 rounded-full border border-[#523826]">${l.subject.en.toUpperCase()} • CHAPTER ${i + 1}</span>
+                    <h3 class="text-2xl font-bold text-[#fdfbf7]">${l.title.en}</h3>
+                    <p class="text-sm text-[#e2d4c0]">${l.title.hi} • Notes + Video + Quiz</p>
+                    
+                    <div class="flex items-center space-x-3 text-xs text-[#d2c0ad] pt-1">
+                      <span>⏱ 15 min</span>
+                      <span class="text-emerald-400 font-bold flex items-center gap-1">📶 Available offline</span>
+                    </div>
+                  </div>
+
+                  ${activeTab === 'subjects' ? `
+                    <button onclick="openLesson('${l.id}')" class="btn-beige px-6 py-3 rounded-xl font-bold text-md w-full md:w-auto text-center cursor-pointer shadow text-[#2a1b12] hover:bg-white transition-colors">
+                      Start Lesson →
+                    </button>
+                  ` : `
+                    ${isAttempted ? `
+                      <button onclick="openLesson('${l.id}')" class="bg-emerald-700 hover:bg-emerald-800 text-white border-2 border-emerald-400 px-6 py-3 rounded-xl font-bold text-md w-full md:w-auto text-center cursor-pointer shadow-md flex items-center justify-center space-x-2 transition-all">
+                        <span>✓ Score: ${attempt.score}/${attempt.total}</span>
+                      </button>
+                    ` : `
+                      <button onclick="openLesson('${l.id}')" class="btn-beige px-6 py-3 rounded-xl font-bold text-md w-full md:w-auto text-center cursor-pointer shadow text-[#2a1b12] hover:bg-white transition-colors">
+                        Start Quiz ✍️
+                      </button>
+                    `}
+                  `}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function openLesson(id) {
+      selectedLesson = appData.lessons.find(l => l.id === id);
+      currentQuizIndex = 0;
+      userAnswers = {};
+      render();
+    }
+
+    function renderLessonView(container) {
+      const l = selectedLesson;
+      container.innerHTML = `
+        <div class="space-y-6">
+          <div class="card p-6 space-y-6">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-[#573d2b] bg-[#ebdcd0] px-3 py-1 rounded-full">${l.subject.en} • ${selectedClass}</span>
+              <h1 class="text-3xl font-bold text-[#2a1b12] mt-2">${l.title.en}</h1>
+              <p class="text-sm text-[#684f3e]">${l.title.hi}</p>
+            </div>
+
+            <div class="card p-4 bg-[#1b120b] text-[#f6f0e6] rounded-xl space-y-3 border-none">
+              <div class="flex justify-between items-center text-xs text-[#d8c3b3]">
+                <span class="font-bold">🎥 Pre-recorded Offline Video Lesson</span>
+                <span class="bg-[#3a2517] text-[#f2e6db] px-2 py-0.5 rounded font-mono">Zero Data Needed</span>
+              </div>
+              
+              <video controls controlsList="nodownload" class="w-full rounded-lg bg-black aspect-video max-h-96">
+                <source src="/static/videos/${l.id}.mp4" type="video/mp4">
+                Your browser does not support offline video playback.
+              </video>
+            </div>
+
+            <div class="space-y-4 pt-2">
+              <h3 class="text-xl font-bold text-[#2a1b12]">Key Concepts Summary</h3>
+              ${l.pages.map((p, idx) => `
+                <div class="p-4 bg-[#fbf8f3] rounded-xl border border-[#e8ded3]">
+                  <p class="text-lg leading-relaxed text-[#2a1b12] font-medium">${p.text.en}</p>
+                  <p class="text-md text-[#684f3e] mt-2">${p.text.hi}</p>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="pt-4 border-t border-[#e2d4c0]">
+              <button onclick="activeTab='quiz'; currentQuizIndex=0; userAnswers={}; render()" class="w-full btn-brown p-4 rounded-xl font-bold text-center text-lg cursor-pointer shadow hover:opacity-90 transition">
+                Take Chapter Quiz ✍️
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStepByStepQuiz(container) {
+      const l = selectedLesson;
+      const quizList = l.quiz || [];
+      const totalQ = quizList.length;
+      const q = quizList[currentQuizIndex];
+      const selectedChoice = userAnswers[currentQuizIndex];
+
+      container.innerHTML = `
+        <div class="card p-6 space-y-6 max-w-2xl mx-auto border-2 border-[#d0bea7] shadow-xl bg-[#fdfcf9]">
+          <div class="space-y-2 border-b border-[#e2d4c0] pb-4">
+            <div class="flex justify-between items-center text-sm font-bold text-[#684f3e]">
+              <span class="uppercase tracking-wider">${l.subject.en} (${selectedClass}) QUIZ</span>
+              <span class="bg-[#ebdcd0] px-3.5 py-1 rounded-full text-[#42291a] font-bold">Question ${currentQuizIndex + 1} of ${totalQ}</span>
+            </div>
+            
+            <h1 class="text-xl font-bold text-[#2a1b12]">${l.title.en}</h1>
+
+            <div class="w-full bg-[#e2d4c0] h-2.5 rounded-full overflow-hidden mt-3">
+              <div class="bg-[#42291a] h-full transition-all duration-300" style="width: ${((currentQuizIndex + 1) / totalQ) * 100}%"></div>
+            </div>
+          </div>
+
+          <div class="space-y-4 bg-[#fcf9f5] p-5 rounded-2xl border border-[#e8ded3]">
+            <h2 class="font-bold text-xl text-[#2a1b12]">${q.q.en}</h2>
+            <p class="text-sm text-[#684f3e]">${q.q.hi}</p>
+
+            <div class="space-y-3 pt-2">
+              ${q.choices.en.map((c, ci) => `
+                <label onclick="selectQuizAnswer(${ci})" class="flex items-center space-x-3 p-4 rounded-xl border cursor-pointer transition-all duration-150 ${selectedChoice === ci ? 'bg-[#ebdcd0] border-[#42291a] font-bold text-[#2a1b12] shadow-sm' : 'bg-white border-[#e0d3c1] hover:bg-[#f5ebe0] text-[#2a1b12]'}">
+                  <input type="radio" name="quiz_opt" value="${ci}" ${selectedChoice === ci ? 'checked' : ''} class="w-5 h-5 accent-[#42291a]">
+                  <span class="text-md">${c}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center pt-4 border-t border-[#e2d4c0]">
+            <button onclick="prevQuestion()" ${currentQuizIndex === 0 ? 'disabled class="opacity-40 btn-beige px-5 py-3 rounded-xl font-bold cursor-not-allowed"' : 'class="btn-beige px-5 py-3 rounded-xl font-bold cursor-pointer hover:bg-[#d6c1aa]"'}>
+              ← Previous
+            </button>
+
+            ${currentQuizIndex < totalQ - 1 ? `
+              <button onclick="nextQuestion()" ${selectedChoice === undefined ? 'disabled class="opacity-40 btn-brown px-6 py-3 rounded-xl font-bold cursor-not-allowed"' : 'class="btn-brown px-6 py-3 rounded-xl font-bold cursor-pointer hover:opacity-90"'}>
+                Next →
+              </button>
+            ` : `
+              <button onclick="submitCompleteQuiz()" ${selectedChoice === undefined ? 'disabled class="opacity-40 btn-brown px-6 py-3 rounded-xl font-bold cursor-not-allowed"' : 'class="btn-brown px-6 py-3 rounded-xl font-bold cursor-pointer bg-emerald-900 hover:bg-emerald-800"'}>
+                Submit Quiz ✍️
+              </button>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function selectQuizAnswer(choiceIdx) {
+      userAnswers[currentQuizIndex] = choiceIdx;
+      render();
+    }
+
+    function nextQuestion() {
+      if (currentQuizIndex < selectedLesson.quiz.length - 1) {
+        currentQuizIndex++;
+        render();
+      }
+    }
+
+    function prevQuestion() {
+      if (currentQuizIndex > 0) {
+        currentQuizIndex--;
+        render();
+      }
+    }
+
+    async function submitCompleteQuiz() {
+      const l = selectedLesson;
+      const quizList = l.quiz || [];
+      let score = 0;
+      let answersArr = [];
+
+      quizList.forEach((q, idx) => {
+        const userAns = userAnswers[idx];
+        answersArr.push(userAns !== undefined ? userAns : -1);
+        if (userAns !== undefined && userAns === q.answer) {
+          score++;
+        }
+      });
+
+      try {
+        await fetch('/api/attempt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: studentId,
+            name: studentName,
+            className: selectedClass,
+            lessonId: l.id,
+            score: score,
+            total: quizList.length,
+            answers: answersArr
+          })
+        });
+      } catch (err) {
+        console.log('Saved offline locally');
+      }
+
+      const attemptRecord = {
+        studentId: studentId,
+        studentName: studentName,
+        className: selectedClass,
+        lessonId: l.id,
+        title: l.title.en,
+        subject: l.subject.en,
+        score: score,
+        total: quizList.length,
+        pct: Math.round((score / quizList.length) * 100),
+        date: new Date().toLocaleTimeString()
+      };
+
+      myAttempts = myAttempts.filter(a => a.lessonId !== l.id);
+      myAttempts.unshift(attemptRecord);
+      localStorage.setItem('gs_attempts', JSON.stringify(myAttempts));
+
+      showQRModal(attemptRecord);
+    }
+
+    function showQRModal(attempt) {
+      const container = document.getElementById('tab-content');
+      const payload = JSON.stringify({
+        id: attempt.studentId,
+        name: attempt.studentName,
+        cls: attempt.className,
+        lesson: attempt.lessonId,
+        s: attempt.score,
+        t: attempt.total
+      });
+
+      container.innerHTML = `
+        <div class="card p-6 space-y-6 text-center max-w-lg mx-auto border-2 border-[#42291a] shadow-2xl">
+          <div class="bg-[#f0e3d3] p-5 rounded-2xl border border-[#d6c2ab]">
+            <span class="text-[#684f3e] font-bold text-sm uppercase">Quiz Result Summary (${attempt.className})</span>
+            <h2 class="text-4xl font-bold text-[#2a1b12] mt-1">${attempt.score} / ${attempt.total}</h2>
+            <p class="text-[#684f3e] font-bold text-lg mt-1">${attempt.pct}% Score Completed</p>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-xl font-bold text-[#2a1b12]">📲 Zero-Wi-Fi Optical Result QR Code</h3>
+            <p class="text-sm text-[#684f3e]">Show this QR Code to your teacher's camera to record your grade without Wi-Fi or Internet!</p>
+          </div>
+
+          <div id="qrcode" class="flex justify-center p-4 bg-white border border-[#e2d4c0] rounded-xl shadow-inner min-h-[220px] items-center"></div>
+
+          <button onclick="activeTab='attempts'; selectedLesson=null; currentQuizIndex=0; userAnswers={}; render()" class="w-full btn-brown p-4 rounded-xl font-bold cursor-pointer text-lg hover:opacity-90 transition">
+            View Attempted Quizzes History →
+          </button>
+        </div>
+      `;
+
+      setTimeout(() => {
+        const qrContainer = document.getElementById("qrcode");
+        qrContainer.innerHTML = "";
+        if (typeof QRCode !== 'undefined') {
+          new QRCode(qrContainer, {
+            text: payload,
+            width: 200,
+            height: 200,
+            colorDark : "#2a1b12",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+          });
+        } else {
+          qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payload)}" alt="QR Code" class="w-48 h-48 mx-auto" />`;
+        }
+      }, 50);
+    }
+
+    function renderAttemptsList(container) {
+      container.innerHTML = `
+        <div class="space-y-4">
+          <h2 class="text-2xl font-bold text-[#2a1b12]">Your Quiz Marks & History (${selectedClass})</h2>
+          ${myAttempts.length === 0 ? `
+            <div class="card p-6 text-center text-[#684f3e]">
+              No quizzes attempted yet. Select the <strong>Quiz</strong> tab to take your first practice test!
+            </div>
+          ` : `
+            <div class="space-y-3">
+              ${myAttempts.map(a => `
+                <div class="card p-4 flex justify-between items-center shadow-sm hover:border-[#b8a18b] transition-all">
+                  <div>
+                    <span class="text-xs font-bold uppercase text-[#8c7363]">${a.subject} • ${a.className || selectedClass}</span>
+                    <h3 class="text-lg font-bold text-[#2a1b12]">${a.title}</h3>
+                    <p class="text-xs text-[#684f3e]">Attempted at ${a.date}</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-2xl font-bold ${a.pct >= 50 ? 'text-emerald-800' : 'text-rose-800'}">${a.score} / ${a.total}</span>
+                    <p class="text-xs font-bold text-[#684f3e]">${a.pct}%</p>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    function renderTeacherView(container) {
+      container.innerHTML = `
+        <div class="space-y-6">
+          <div class="card p-6 bg-[#1a100a] text-[#fdfbf7] space-y-2 border-2 border-[#3a2517]">
+            <h2 class="text-2xl font-bold text-[#fdfbf7]">Teacher Command Center</h2>
+            <p class="text-[#e2d4c0] text-sm">Local Hub Address: <span class="text-[#f4d1ad] font-mono font-bold">${appData.joinUrl}</span></p>
+          </div>
+
+          <div class="card p-6 border-2 border-[#8c5a3c] space-y-4 bg-[#fdfcf7]">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+              <div>
+                <h3 class="font-bold text-xl text-[#2a1b12]">📷 Scan Student Result QR Code</h3>
+                <p class="text-sm text-[#684f3e]">Scan a student's phone screen directly to record marks with 0 Wi-Fi/Data.</p>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <button id="scan-toggle-btn" onclick="toggleCameraScanner()" class="btn-brown text-sm px-4 py-2.5 rounded-xl font-bold cursor-pointer hover:opacity-90 transition">
+                  Start Camera Stream
+                </button>
+
+                <input type="file" id="qr-file-input" accept="image/*" onchange="scanQRFromFile(this)" class="hidden">
+                <button onclick="document.getElementById('qr-file-input').click()" class="btn-beige text-sm px-4 py-2.5 rounded-xl font-bold cursor-pointer border border-[#c2b09a] text-[#2a1b12] hover:bg-white transition-colors">
+                  📁 Snap / Choose QR Photo
+                </button>
+              </div>
+            </div>
+            
+            <div id="qr-reader" class="w-full max-w-md mx-auto hidden rounded-xl overflow-hidden border-2 border-[#8c5a3c] bg-[#1a100a] p-2 text-[#fdfbf7]"></div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card p-4">
+              <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Recorded Students (${appData.students ? appData.students.length : 0})</h3>
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                ${(appData.students && appData.students.length > 0) ? appData.students.map(s => `
+                  <div class="p-2.5 bg-[#f3e8db] rounded-lg flex justify-between items-center">
+                    <span class="font-bold text-[#2a1b12]">${s.name}${s.className ? '(' + s.className + ')' : ''}</span>
+                    <span class="text-xs font-mono font-bold text-[#573d2b]">${s.lastScore || 'Active'}</span>
+                  </div>
+                `).join('') : '<p class="text-sm text-[#8c7363]">No student records scanned yet.</p>'}
+              </div>
+            </div>
+
+            <div class="card p-4">
+              <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Cloud Sync</h3>
+              <p class="text-sm text-[#684f3e]">Pending offline attempts: <strong class="text-[#2a1b12]">${appData.pendingSync || 0}</strong></p>
+              <button onclick="triggerSync()" class="mt-4 btn-brown text-sm px-4 py-2 rounded-xl font-bold cursor-pointer hover:opacity-90 transition">Simulate Town Signal Sync</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleCameraScanner() {
+      const readerElem = document.getElementById('qr-reader');
+      const btn = document.getElementById('scan-toggle-btn');
+
+      if (readerElem.classList.contains('hidden')) {
+        readerElem.classList.remove('hidden');
+        btn.innerText = 'Close Camera Stream';
+        btn.style.backgroundColor = '#8a2d21';
+
+        html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          rememberLastUsedCamera: true
+        });
+
+        html5QrcodeScanner.render(async (decodedText) => {
+          try {
+            const data = JSON.parse(decodedText);
+            await recordScoreToServer(data);
+            stopCameraScanner();
+          } catch (err) {
+            alert("Scanned QR Code payload invalid.");
+          }
+        }, (error) => {});
+      } else {
+        stopCameraScanner();
+      }
+    }
+
+    async function scanQRFromFile(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        try {
+          const decodedText = await html5QrCode.scanFile(file, true);
+          const data = JSON.parse(decodedText);
+          await recordScoreToServer(data);
+        } catch (err) {
+          alert("Could not detect a QR code in the selected photo. Please take a clearer picture.");
+        }
+      }
+    }
+
+    async function recordScoreToServer(data) {
+      await fetch('/api/attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: data.id,
+          name: data.name,
+          className: data.cls,
+          lessonId: data.lesson,
+          score: data.s,
+          total: data.t,
+          answers: []
+        })
+      });
+      alert(`✅ Score Recorded Successfully!\nStudent: ${data.name} (${data.cls || 'Class 10'})\nScore: ${data.s}/${data.t}`);
+      init();
+    }
+
+    function stopCameraScanner() {
+      if (html5QrcodeScanner) {
+        try { html5QrcodeScanner.clear(); } catch (e) {}
+        html5QrcodeScanner = null;
+      }
+      const readerElem = document.getElementById('qr-reader');
+      if (readerElem) readerElem.classList.add('hidden');
+      const btn = document.getElementById('scan-toggle-btn');
+      if (btn) {
+        btn.innerText = 'Start Camera Stream';
+        btn.style.backgroundColor = 'var(--primary-brown)';
+      }
+    }
+
+    async function triggerSync() {
+      await fetch('/api/sync', { method: 'POST' });
+      alert('Synced offline records with central server!');
+      init();
+    }
+
+    init();
+  </script>
 </body>
 </html>
