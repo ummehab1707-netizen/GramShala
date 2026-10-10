@@ -1,35 +1,129 @@
 # GramShala
 
-A village classroom that runs off **one teacher phone**. Students join the teacher’s hotspot and learn. No Wi‑Fi. No data pack. No cloud.
+**A classroom that works when the internet doesn't.**
 
-Built for the Inclusive Technology prompt: education and digital access for places the tower does not reach.
+One teacher device becomes a local classroom server. Students join its Wi-Fi from any phone browser, study lessons for Classes 6-10, take quizzes, and carry their result home as a QR code that the teacher can scan. No internet, no data pack, no cloud, no app install.
+
+Built for the **Inclusive Technology** track (education and digital access for underserved communities).
+
+- Demo video: `[ADD LINK]`
+- Live demo (optional): `[ADD LINK or "Not deployed by design: the product runs offline on a local hub"]`
+
+---
+
+## The problem
+
+Students in rural and government schools often have no reliable internet, one shared phone at home, and no tutor to explain a chapter a second time. Most "digital learning" tools quietly assume a data connection, so they fail exactly where they are needed.
+
+> `[ADD 2 VERIFIED STATISTICS WITH SOURCE LINKS: for example rural learning levels (ASER), school internet/computer access (UDISE+), mobile data access (TRAI). Do not use numbers from memory.]`
+
+## What GramShala does
+
+| Barrier | How GramShala answers it |
+|---|---|
+| No internet | A local hub serves everything over its own Wi-Fi. Zero external requests: every script, style and font is bundled in `static/vendor/`. |
+| No app store, low-end phones | Runs in any phone browser. Nothing to install. |
+| Teacher can't see who understood | Quiz results land on the teacher screen. Class view, per-student scores, and CSV export (`/api/report.csv`). |
+| Student's device can't reach the hub later | The student's phone shows a **Result QR**. The teacher scans it (camera or photo) and the marks are recorded, with no network between the two devices. |
+| Results stuck on the classroom device | Results queue locally. A "town signal" sync step is modelled in the demo; real cloud upload is on the roadmap. |
 
 ## How it works
 
-1. A teacher (or volunteer) starts GramShala on their phone or a cheap laptop.
-2. They turn on a **hotspot**. That radio is local — it does not need a sim plan.
-3. Students connect to that hotspot and open the address shown on the teacher screen.
-4. The teacher broadcasts a lesson. Quizzes and scores stay on the hub.
-5. If someone later reaches town signal, queued results can be marked synced (demo: the “town signal” button).
+```
+ Teacher device (laptop / mini-PC / Raspberry Pi)          Students' phones
+ ┌───────────────────────────────────────────┐  local     ┌──────────────────┐
+ │ GramShala hub: FastAPI + SQLite           │  Wi-Fi     │ Browser only     │
+ │ lessons.json · quizzes · results          │◄──────────►│ lessons + quiz   │
+ └───────────────▲───────────────────────────┘ (no        └────────┬─────────┘
+                 │                            internet)           │ finishes quiz
+                 │  teacher scans (camera or photo)               ▼
+                 └─────────────────────────────────────  Result QR on the screen
+```
 
-## Demo (judges)
+1. The teacher starts the hub and turns on a hotspot or router. The hotspot needs no mobile data.
+2. Students connect, open the address shown on the teacher screen (or scan the join QR), pick a class and subject, and study.
+3. After a quiz, the student gets a score and a Result QR containing: student id, name, class, lesson id, score and total.
+4. The teacher scans that QR on the teacher screen. The result is saved to the hub's SQLite database and appears in "Recorded Results".
 
-1. Install and run on a laptop.
-2. Open the teacher view in one browser window.
-3. Open the student view in another window (or a second phone on the same hotspot / same Wi‑Fi).
-4. Turn on **Airplane mode** after joining. The class still runs.
-5. Play *Where does rain come from?*, run the quiz, watch the score appear on the teacher board.
+## Quick start
+
+Requirements: Python 3.10+.
 
 ```bash
+git clone https://github.com/ummehab1707-netizen/GramShala.git
+cd GramShala
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python -m app.main
 ```
 
-- Teacher: `http://127.0.0.1:4747`
-- Students on the LAN/hotspot: `http://<shown-ip>:4747`
+- Teacher screen: `http://127.0.0.1:4747`
+- Students (same Wi-Fi or hotspot): the `http://<ip>:4747` address printed in the terminal, also shown on the teacher screen with a join QR.
 
-## Why this, not “download videos”
+Optional settings:
 
-Shared video still needs a file to move, a screen to gather around, and no way to see who understood. GramShala treats the teacher device as a **classroom server**: live pages, bilingual lessons, quiz feedback, and a roster that can wait for a signal.
+| Variable | Purpose | Example |
+|---|---|---|
+| `GRAMSHALA_PORT` | Change the port (default 4747) | `GRAMSHALA_PORT=8080 python -m app.main` |
+| `GRAMSHALA_IP` | Force the address shown to students if auto-detection picks the wrong network | `GRAMSHALA_IP=192.168.43.1 python -m app.main` |
+
+> Always start the hub with `python -m app.main` so the printed address and the real port match.
+
+## Try the offline demo (for judges)
+
+1. Start the hub and open the teacher screen on the laptop.
+2. Connect a phone to the same hotspot or router. **Turn the internet off on that network** (or use a hotspot with no uplink).
+3. On the phone, open the hub address, choose a class, enter a name, and finish a quiz.
+4. The phone shows the score and a Result QR.
+5. On the teacher screen, use **Scan Student Result QR Code** (camera on a laptop) or **Snap / Choose QR Photo** (works on phones too), then check **Recorded Results**.
+6. Optional: open `/api/report.csv` to download the class report.
+
+You can verify the "no internet" claim yourself: `grep -n "https://" static/index.html` returns nothing, and the browser's network tab shows requests only to the hub.
+
+## Privacy
+
+- Students enter a name only. No email, phone number, password or account.
+- Data stays on the classroom hub's SQLite file (`data/gramshala.db`, not committed to git).
+- Nothing is sent to any cloud service in the current version.
+
+## Honest scope
+
+What works today, and what does not yet:
+
+- **Hub runs on a laptop or PC.** Running the hub on a teacher's phone is a roadmap item, not a current feature.
+- **Content is prototype-level.** Lesson pages are short summaries, and practice questions for some classes are generated drafts. Class 10 Physical Science is the reference subject being written in full first. `[UPDATE THIS SECTION AS YOU IMPROVE THE CONTENT]`
+- **The Result QR is not tamper-proof.** It is an honour-system record for low-stakes practice, not exam grading. Signing results is on the roadmap.
+- **Camera scanning needs a secure context.** Browsers allow live camera access on `localhost` but may block it on a plain `http://192.168.x.x` address, so on a teacher's phone use the "Snap / Choose QR Photo" button. `[TEST ON YOUR DEVICES AND UPDATE]`
+- **"Town signal sync" is a simulation.** It marks results as synced; there is no cloud upload yet.
+- **Languages.** The interface and lessons are English with Hindi text for part of the content. Telugu is planned. `[UPDATE]`
+
+## Roadmap
+
+1. Signed Result QR codes, so a score cannot be edited.
+2. Real store-and-forward sync to a district gradebook when any device reaches a signal.
+3. Hub on a teacher's Android phone.
+4. Telugu and full regional-language lessons, with audio narration.
+5. Teacher analytics: class average, most-missed questions, students below 50%.
+6. Interactive simulations for physics and maths chapters.
+
+## Tech and structure
+
+FastAPI, SQLite, vanilla JavaScript, pre-built Tailwind CSS, `qrcodejs` and `html5-qrcode` (both bundled locally).
+
+```
+app/
+  main.py          hub server, API, CSV report, join QR
+  db.py            SQLite storage
+content/
+  lessons.json     classes, subjects, lessons, quizzes
+static/
+  index.html       the whole student + teacher interface
+  vendor/          bundled offline assets (Tailwind CSS, QR libraries)
+tools/             content-generation helper scripts
+requirements.txt
+```
+
+## Team
+
+`[NAME(S)]` · `[COLLEGE/ORGANISATION]` · Built for the HackNowa Global Hackathon 2026.

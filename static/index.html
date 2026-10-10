@@ -4,9 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GramShala - Offline Classroom</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="/static/vendor/qrcode.min.js"></script>
+  <script src="/static/vendor/html5-qrcode.min.js"></script>
   <style>
     :root {
       --bg-beige: #f6f0e6;
@@ -28,6 +27,7 @@
     #qr-reader a { color: #f4d1ad !important; text-decoration: underline; }
     #qr-reader button { background-color: #e8dbc9 !important; color: #2a1b12 !important; border-radius: 0.5rem; padding: 0.5rem 1rem; font-weight: bold; }
   </style>
+  <link rel="stylesheet" href="/static/vendor/tailwind.css" />
 </head>
 <body class="min-h-screen pb-12">
 
@@ -453,6 +453,21 @@
       `;
     }
 
+    // Shuffle answer choices per student so the right answer is not always option A.
+    // Answers are still stored as the ORIGINAL index, so scoring and the server stay correct.
+    function quizOrder(lessonId, qi, n) {
+      const key = (studentId || 'x') + '|' + lessonId + '|' + qi;
+      let hsh = 2166136261;
+      for (let i = 0; i < key.length; i++) { hsh ^= key.charCodeAt(i); hsh = Math.imul(hsh, 16777619) >>> 0; }
+      const idx = [...Array(n).keys()];
+      for (let i = n - 1; i > 0; i--) {
+        hsh = (Math.imul(hsh, 1664525) + 1013904223) >>> 0;
+        const j = hsh % (i + 1);
+        [idx[i], idx[j]] = [idx[j], idx[i]];
+      }
+      return idx;
+    }
+
     function renderStepByStepQuiz(container) {
       const l = selectedLesson;
       const quizList = l.quiz || [];
@@ -480,12 +495,12 @@
             <p class="text-sm text-[#684f3e]">${q.q.hi}</p>
 
             <div class="space-y-3 pt-2">
-              ${q.choices.en.map((c, ci) => `
+              ${quizOrder(l.id, currentQuizIndex, q.choices.en.length).map((ci, pos) => { const c = String(q.choices.en[ci]).replace(/^[A-Fa-f][).]\s*/, ''); return `
                 <label onclick="selectQuizAnswer(${ci})" class="flex items-center space-x-3 p-4 rounded-xl border cursor-pointer transition-all duration-150 ${selectedChoice === ci ? 'bg-[#ebdcd0] border-[#42291a] font-bold text-[#2a1b12] shadow-sm' : 'bg-white border-[#e0d3c1] hover:bg-[#f5ebe0] text-[#2a1b12]'}">
                   <input type="radio" name="quiz_opt" value="${ci}" ${selectedChoice === ci ? 'checked' : ''} class="w-5 h-5 accent-[#42291a]">
-                  <span class="text-md">${c}</span>
+                  <span class="text-md">${'ABCDEF'[pos]}) ${c}</span>
                 </label>
-              `).join('')}
+              `; }).join('')}
             </div>
           </div>
 
@@ -624,7 +639,7 @@
             correctLevel : QRCode.CorrectLevel.H
           });
         } else {
-          qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(payload)}" alt="QR Code" class="w-48 h-48 mx-auto" />`;
+          qrContainer.innerHTML = `<p class="text-sm font-bold text-[#8a2d21]">QR library missing. Show this result to your teacher: ${attempt.score}/${attempt.total}</p>`;
         }
       }, 50);
     }
@@ -658,12 +673,25 @@
       `;
     }
 
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function lessonTitle(id) {
+      const l = (appData.lessons || []).find((x) => x.id === id);
+      return l ? l.title.en : id;
+    }
+
     function renderTeacherView(container) {
+      const recorded = (appData.analytics && appData.analytics.results) || [];
       container.innerHTML = `
         <div class="space-y-6">
           <div class="card p-6 bg-[#1a100a] text-[#fdfbf7] space-y-2 border-2 border-[#3a2517]">
             <h2 class="text-2xl font-bold text-[#fdfbf7]">Teacher Command Center</h2>
-            <p class="text-[#e2d4c0] text-sm">Local Hub Address: <span class="text-[#f4d1ad] font-mono font-bold">${appData.joinUrl}</span></p>
+            <p class="text-[#e2d4c0] text-sm">Local Hub Address: <span class="text-[#f4d1ad] font-mono font-bold">${esc(appData.joinUrl)}</span></p>
+            <div class="flex items-center gap-3 pt-2">
+              <img src="/api/qr.svg" alt="Join QR" class="w-28 h-28 bg-white p-1 rounded-lg" onerror="this.style.display='none'">
+              <p class="text-[#e2d4c0] text-sm">Students on the hub Wi-Fi scan this code to open GramShala. No internet needed.</p>
+            </div>
           </div>
 
           <div class="card p-6 border-2 border-[#8c5a3c] space-y-4 bg-[#fdfcf7]">
@@ -690,14 +718,14 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="card p-4">
-              <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Recorded Students (${appData.students ? appData.students.length : 0})</h3>
+              <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Recorded Results (${recorded.length})</h3>
               <div class="space-y-2 max-h-48 overflow-y-auto">
-                ${(appData.students && appData.students.length > 0) ? appData.students.map(s => `
-                  <div class="p-2.5 bg-[#f3e8db] rounded-lg flex justify-between items-center">
-                    <span class="font-bold text-[#2a1b12]">${s.name}${s.className ? '(' + s.className + ')' : ''}</span>
-                    <span class="text-xs font-mono font-bold text-[#573d2b]">${s.lastScore || 'Active'}</span>
+                ${recorded.length > 0 ? recorded.map(r => `
+                  <div class="p-2.5 bg-[#f3e8db] rounded-lg flex justify-between items-center gap-2">
+                    <span class="font-bold text-[#2a1b12]">${esc(r.name)}<span class="block text-xs font-normal text-[#684f3e]">${esc(lessonTitle(r.lessonId))}</span></span>
+                    <span class="text-xs font-mono font-bold text-[#573d2b]">${r.score}/${r.total}</span>
                   </div>
-                `).join('') : '<p class="text-sm text-[#8c7363]">No student records scanned yet.</p>'}
+                `).join('') : '<p class="text-sm text-[#8c7363]">No results recorded yet.</p>'}
               </div>
             </div>
 
@@ -788,7 +816,7 @@
 
     async function triggerSync() {
       await fetch('/api/sync', { method: 'POST' });
-      alert('Synced offline records with central server!');
+      alert('Demo only: results were marked as synced. Real cloud upload is on the roadmap.');
       init();
     }
 
