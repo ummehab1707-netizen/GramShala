@@ -6,8 +6,8 @@ One teacher device becomes a local classroom server. Students join its Wi-Fi fro
 
 Built for the **Inclusive Technology** track (education and digital access for underserved communities).
 
-- Demo video: `[ADD LINK]`
-- Live demo (optional): `[ADD LINK or "Not deployed by design: the product runs offline on a local hub"]`
+- Demo video: `https://drive.google.com/drive/folders/1UmYD1nlAbbq1B98EXvQtMbz75stAF72W`
+
 
 ---
 
@@ -15,7 +15,7 @@ Built for the **Inclusive Technology** track (education and digital access for u
 
 Students in rural and government schools often have no reliable internet, one shared phone at home, and no tutor to explain a chapter a second time. Most "digital learning" tools quietly assume a data connection, so they fail exactly where they are needed.
 
-> `[ADD 2 VERIFIED STATISTICS WITH SOURCE LINKS: for example rural learning levels (ASER), school internet/computer access (UDISE+), mobile data access (TRAI). Do not use numbers from memory.]`
+[Annual Status of Education Report (ASER) 2023  ](https://www.google.com/url?sa=i&source=web&rct=j&url=https://www.indiatoday.in/education-today/latest-studies/story/42-of-rural-children-struggle-aged-14-18-unable-to-read-english-report-2490218-2024-01-18&ved=2ahUKEwjhubOr_q-XAxW93TgGHa--DnoQy_kOeggIAggBCAwQAg&opi=89978449&cd&psig=AOvVaw1G4aoUNPmrIjcYavWgSJSv&ust=1791740151610000)
 
 ## What GramShala does
 
@@ -76,8 +76,7 @@ Optional settings:
 2. Connect a phone to the same hotspot or router. **Turn the internet off on that network** (or use a hotspot with no uplink).
 3. On the phone, open the hub address, choose a class, enter a name, and finish a quiz.
 4. The phone shows the score and a Result QR.
-5. On the teacher screen, use **Scan Student Result QR Code** (camera on a laptop) or **Snap / Choose QR Photo** (works on phones too), then check **Recorded Results**.
-6. Optional: open `/api/report.csv` to download the class report.
+5. On the teacher screen, use **Scan Student Result QR Code** (camera on a laptop) or **Snap / Choose QR Photo** (works on phones too), then check 
 
 You can verify the "no internet" claim yourself: `grep -n "https://" static/index.html` returns nothing, and the browser's network tab shows requests only to the hub.
 
@@ -92,11 +91,11 @@ You can verify the "no internet" claim yourself: `grep -n "https://" static/inde
 What works today, and what does not yet:
 
 - **Hub runs on a laptop or PC.** Running the hub on a teacher's phone is a roadmap item, not a current feature.
-- **Content is prototype-level.** Lesson pages are short summaries, and practice questions for some classes are generated drafts. Class 10 Physical Science is the reference subject being written in full first. `[UPDATE THIS SECTION AS YOU IMPROVE THE CONTENT]`
+- **Content is prototype-level.** Lesson pages are short summaries, and practice questions for some classes are generated drafts. Class 10 Physical Science is the reference subject being written in full first. 
 - **The Result QR is not tamper-proof.** It is an honour-system record for low-stakes practice, not exam grading. Signing results is on the roadmap.
-- **Camera scanning needs a secure context.** Browsers allow live camera access on `localhost` but may block it on a plain `http://192.168.x.x` address, so on a teacher's phone use the "Snap / Choose QR Photo" button. `[TEST ON YOUR DEVICES AND UPDATE]`
+- **Camera scanning needs a secure context.** Browsers allow live camera access on `localhost` but may block it on a plain `http://192.168.x.x` address, so on a teacher's phone use the "Snap / Choose QR Photo" button. 
 - **"Town signal sync" is a simulation.** It marks results as synced; there is no cloud upload yet.
-- **Languages.** The interface and lessons are English with Hindi text for part of the content. Telugu is planned. `[UPDATE]`
+- **Languages.** The interface and lessons are English with Hindi text for part of the content. Telugu is planned.
 
 ## Roadmap
 
@@ -105,7 +104,7 @@ What works today, and what does not yet:
 3. Hub on a teacher's Android phone.
 4. Telugu and full regional-language lessons, with audio narration.
 5. Teacher analytics: class average, most-missed questions, students below 50%.
-6. Interactive simulations for physics and maths chapters.
+
 
 ## Tech and structure
 
@@ -126,4 +125,4 @@ requirements.txt
 
 ## Team
 
-`[NAME(S)]` · `[COLLEGE/ORGANISATION]` · Built for the HackNowa Global Hackathon 2026.
+`Umme Habeeba` · `[cbit ]` · Built for the HackNowa Global Hackathon 2026.
