@@ -4,8 +4,54 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GramShala - Offline Classroom</title>
-  <script src="/static/vendor/qrcode.min.js"></script>
-  <script src="/static/vendor/html5-qrcode.min.js"></script>
+  <script src="/static/vendor/qrcode.min.js">
+function switchCamera(mode) {
+    if (typeof html5QrCode !== "undefined" && html5QrCode) {
+        if (html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => launchCameraMode(mode)).catch(() => launchCameraMode(mode));
+        } else {
+            launchCameraMode(mode);
+        }
+    } else {
+        launchCameraMode(mode);
+    }
+}
+
+function launchCameraMode(mode) {
+    if (typeof html5QrCode === "undefined" || !html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+    }
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const successCb = typeof onScanSuccess === "function" ? onScanSuccess : (txt => alert("Scanned: " + txt));
+    const failCb = typeof onScanFailure === "function" ? onScanFailure : (() => {});
+    html5QrCode.start({ facingMode: mode }, config, successCb, failCb).catch(err => console.error(err));
+}
+
+</script>
+  <script src="/static/vendor/html5-qrcode.min.js">
+function switchCamera(mode) {
+    if (typeof html5QrCode !== "undefined" && html5QrCode) {
+        if (html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => launchCameraMode(mode)).catch(() => launchCameraMode(mode));
+        } else {
+            launchCameraMode(mode);
+        }
+    } else {
+        launchCameraMode(mode);
+    }
+}
+
+function launchCameraMode(mode) {
+    if (typeof html5QrCode === "undefined" || !html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+    }
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const successCb = typeof onScanSuccess === "function" ? onScanSuccess : (txt => alert("Scanned: " + txt));
+    const failCb = typeof onScanFailure === "function" ? onScanFailure : (() => {});
+    html5QrCode.start({ facingMode: mode }, config, successCb, failCb).catch(err => console.error(err));
+}
+
+</script>
   <style>
     :root {
       --bg-beige: #f6f0e6;
@@ -821,6 +867,29 @@
     }
 
     init();
-  </script>
+  
+function switchCamera(mode) {
+    if (typeof html5QrCode !== "undefined" && html5QrCode) {
+        if (html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => launchCameraMode(mode)).catch(() => launchCameraMode(mode));
+        } else {
+            launchCameraMode(mode);
+        }
+    } else {
+        launchCameraMode(mode);
+    }
+}
+
+function launchCameraMode(mode) {
+    if (typeof html5QrCode === "undefined" || !html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
+    }
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const successCb = typeof onScanSuccess === "function" ? onScanSuccess : (txt => alert("Scanned: " + txt));
+    const failCb = typeof onScanFailure === "function" ? onScanFailure : (() => {});
+    html5QrCode.start({ facingMode: mode }, config, successCb, failCb).catch(err => console.error(err));
+}
+
+</script>
 </body>
 </html>
