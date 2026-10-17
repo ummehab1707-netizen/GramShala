@@ -25,6 +25,20 @@ ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
 CONTENT = json.loads((ROOT / "content" / "lessons.json").read_text(encoding="utf-8"))
 LESSONS = {l["id"]: l for l in CONTENT["lessons"]}
+
+
+def _public(lesson: dict) -> dict:
+    """Full text and quiz for finished chapters, quiz only for 'quiz' chapters, metadata for the rest."""
+    status = lesson.get("ready")
+    if status is True:
+        return lesson
+    slim = {k: v for k, v in lesson.items() if k not in ("pages", "quiz")}
+    slim["pages"] = []
+    slim["quiz"] = lesson.get("quiz", []) if status == "quiz" else []
+    return slim
+
+
+PUBLIC_LESSONS = [_public(l) for l in CONTENT["lessons"]]
 PORT = int(os.environ.get("GRAMSHALA_PORT", "4747"))
 
 app = FastAPI(title="GramShala")
@@ -162,6 +176,15 @@ def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 
+def _with_videos() -> list[dict]:
+    """Mark lessons that have a video file in static/videos/<lesson-id>.mp4 (checked on every load)."""
+    out = []
+    for lesson in PUBLIC_LESSONS:
+        has = (STATIC / "videos" / f"{lesson['id']}.mp4").is_file()
+        out.append({**lesson, "video": True} if has else lesson)
+    return out
+
+
 @app.get("/api/bootstrap")
 def bootstrap() -> dict[str, Any]:
     ip = lan_ip()
@@ -169,10 +192,16 @@ def bootstrap() -> dict[str, Any]:
         "joinUrl": f"http://{ip}:{PORT}",
         "lanIp": ip,
         "port": PORT,
-        "lessons": CONTENT["lessons"],
+        "lessons": _with_videos(),
         "languages": CONTENT["languages"],
         **hub.snapshot(),
     }
+
+
+@app.get("/api/analytics")
+def analytics_endpoint() -> dict[str, Any]:
+    """Small payload the teacher screen polls, instead of reloading every lesson."""
+    return {"analytics": analytics(), "pendingSync": db.unsynced_count()}
 
 
 @app.get("/api/qr.svg")

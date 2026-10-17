@@ -91,7 +91,7 @@ You can verify the "no internet" claim yourself: `grep -n "https://" static/inde
 What works today, and what does not yet:
 
 - **Hub runs on a laptop or PC.** Running the hub on a teacher's phone is a roadmap item, not a current feature.
-- **Content is prototype-level.** Lesson pages are short summaries, and practice questions for some classes are generated drafts. Class 10 Physical Science is the reference subject being written in full first. 
+- **Content: one complete subject, plus practice quizzes.** Class 10 Physical Science chapters 1-6 (reflection and refraction of light, the human eye, chemical equations, acids, bases and salts) are fully written, each with 5-6 note pages, worked examples, diagrams and 10 questions. Twelve more Class 10 chapters (Maths, Biology, English, Social, Hindi) have a 10-question practice quiz, with notes coming soon. All other chapters are shown as "Coming soon" while they are being written.
 - **The Result QR is not tamper-proof.** It is an honour-system record for low-stakes practice, not exam grading. Signing results is on the roadmap.
 - **Camera scanning needs a secure context.** Browsers allow live camera access on `localhost` but may block it on a plain `http://192.168.x.x` address, so on a teacher's phone use the "Snap / Choose QR Photo" button. 
 - **"Town signal sync" is a simulation.** It marks results as synced; there is no cloud upload yet.
@@ -103,7 +103,7 @@ What works today, and what does not yet:
 2. Real store-and-forward sync to a district gradebook when any device reaches a signal.
 3. Hub on a teacher's Android phone.
 4. Telugu and full regional-language lessons, with audio narration.
-5. Teacher analytics: class average, most-missed questions, students below 50%.
+5. Per-student progress history and trends over time for the teacher (class average, students below 50%, most-missed questions and CSV export are already live).
 
 
 ## Tech and structure

@@ -4,54 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GramShala - Offline Classroom</title>
-  <script src="/static/vendor/qrcode.min.js">
-function switchCamera(mode) {
-    if (typeof html5QrCode !== "undefined" && html5QrCode) {
-        if (html5QrCode.isScanning) {
-            html5QrCode.stop().then(() => launchCameraMode(mode)).catch(() => launchCameraMode(mode));
-        } else {
-            launchCameraMode(mode);
-        }
-    } else {
-        launchCameraMode(mode);
-    }
-}
-
-function launchCameraMode(mode) {
-    if (typeof html5QrCode === "undefined" || !html5QrCode) {
-        html5QrCode = new Html5Qrcode("reader");
-    }
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    const successCb = typeof onScanSuccess === "function" ? onScanSuccess : (txt => alert("Scanned: " + txt));
-    const failCb = typeof onScanFailure === "function" ? onScanFailure : (() => {});
-    html5QrCode.start({ facingMode: mode }, config, successCb, failCb).catch(err => console.error(err));
-}
-
-</script>
-  <script src="/static/vendor/html5-qrcode.min.js">
-function switchCamera(mode) {
-    if (typeof html5QrCode !== "undefined" && html5QrCode) {
-        if (html5QrCode.isScanning) {
-            html5QrCode.stop().then(() => launchCameraMode(mode)).catch(() => launchCameraMode(mode));
-        } else {
-            launchCameraMode(mode);
-        }
-    } else {
-        launchCameraMode(mode);
-    }
-}
-
-function launchCameraMode(mode) {
-    if (typeof html5QrCode === "undefined" || !html5QrCode) {
-        html5QrCode = new Html5Qrcode("reader");
-    }
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    const successCb = typeof onScanSuccess === "function" ? onScanSuccess : (txt => alert("Scanned: " + txt));
-    const failCb = typeof onScanFailure === "function" ? onScanFailure : (() => {});
-    html5QrCode.start({ facingMode: mode }, config, successCb, failCb).catch(err => console.error(err));
-}
-
-</script>
+  <script src="/static/vendor/qrcode.min.js"></script>
+  <script src="/static/vendor/html5-qrcode.min.js"></script>
   <style>
     :root {
       --bg-beige: #f6f0e6;
@@ -364,6 +318,8 @@ function launchCameraMode(mode) {
       } else {
         subjects = ['Math', 'Physics', 'Biology', 'English', 'Social', 'Hindi'];
       }
+      const readyOf = (s) => appData.lessons.filter(l => l.class === selectedClass && l.subject.en === s).reduce((n, l) => n + (l.ready === true ? 10 : l.ready ? 1 : 0), 0);
+      subjects.sort((a, b) => readyOf(b) - readyOf(a));
 
       container.innerHTML = `
         <div class="space-y-4">
@@ -375,12 +331,19 @@ function launchCameraMode(mode) {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             ${subjects.map(s => {
               const meta = SUBJECT_METADATA[s] || { name: s, hi: s, color: 'bg-[#ebd2b9] text-[#3d220f]' };
-              const count = appData.lessons.filter(l => l.class === selectedClass && l.subject.en === s).length;
+              const all = appData.lessons.filter(l => l.class === selectedClass && l.subject.en === s);
+              const full = all.filter(l => l.ready === true).length;
+              const qz = all.filter(l => l.ready === 'quiz').length;
+              const rest = all.length - full - qz;
+              const parts = [];
+              if (full) parts.push(full + ' complete');
+              if (qz) parts.push(qz + (qz === 1 ? ' quiz' : ' quizzes') + ' ready');
+              if (rest) parts.push(rest + ' coming soon');
               return `
                 <div onclick="selectSubject('${s}')" class="card p-5 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-[#42291a] flex items-center justify-between">
                   <div>
                     <h3 class="text-xl font-bold text-[#2a1b12]">${meta.name}</h3>
-                    <p class="text-sm text-[#684f3e]">${meta.hi} •${count} Lessons</p>
+                    <p class="text-sm text-[#684f3e]">${meta.hi} • ${(full || qz) ? parts.join(' · ') : 'Coming soon'}</p>
                   </div>
                   <span class="text-sm font-bold text-[#42291a] bg-[#e8dbc9] px-3 py-1 rounded-lg">View →</span>
                 </div>
@@ -412,21 +375,23 @@ function launchCameraMode(mode) {
             ` : lessons.map((l, i) => {
               const attempt = myAttempts.find(a => a.lessonId === l.id);
               const isAttempted = !!attempt;
+              const isReady = !!l.ready;
+              const isFull = l.ready === true;
 
               return `
-                <div class="card p-5 bg-[#1a100a] text-white border-2 border-[#3a2517] shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#523826]">
+                <div class="card p-5 bg-[#1a100a] text-white border-2 border-[#3a2517] shadow-lg ${isReady ? '' : 'opacity-60'} flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#523826]">
                   <div class="space-y-2 max-w-xl">
                     <span class="text-xs font-bold uppercase tracking-wider text-[#f4d1ad] bg-[#3a2517] px-3 py-1 rounded-full border border-[#523826]">${l.subject.en.toUpperCase()} • CHAPTER ${i + 1}</span>
                     <h3 class="text-2xl font-bold text-[#fdfbf7]">${l.title.en}</h3>
-                    <p class="text-sm text-[#e2d4c0]">${l.title.hi} • Notes + Video + Quiz</p>
+                    <p class="text-sm text-[#e2d4c0]">${isFull ? 'Notes + Diagrams + Worked examples + 10-question quiz' : isReady ? 'Practice quiz ready · Notes coming soon' : 'Notes and quiz are being written'}</p>
                     
                     <div class="flex items-center space-x-3 text-xs text-[#d2c0ad] pt-1">
-                      <span>⏱ 15 min</span>
-                      <span class="text-emerald-400 font-bold flex items-center gap-1">📶 Available offline</span>
+                      <span>${isFull ? '⏱ 15 min' : isReady ? '📝 10 questions' : '🚧 In progress'}</span>
+                      ${isReady ? '<span class="text-emerald-400 font-bold flex items-center gap-1">📶 Available offline</span>' : '<span class="text-[#d2c0ad] font-bold">🔒 Coming soon</span>'}
                     </div>
                   </div>
 
-                  ${activeTab === 'subjects' ? `
+                  ${!isReady ? '<span class="text-sm font-bold text-[#d2c0ad] border border-[#523826] px-4 py-2 rounded-xl">Coming soon</span>' : activeTab === 'subjects' ? `
                     <button onclick="openLesson('${l.id}')" class="btn-beige px-6 py-3 rounded-xl font-bold text-md w-full md:w-auto text-center cursor-pointer shadow text-[#2a1b12] hover:bg-white transition-colors">
                       Start Lesson →
                     </button>
@@ -450,7 +415,9 @@ function launchCameraMode(mode) {
     }
 
     function openLesson(id) {
-      selectedLesson = appData.lessons.find(l => l.id === id);
+      const found = appData.lessons.find(l => l.id === id);
+      if (!found || !found.ready) return;
+      selectedLesson = found;
       currentQuizIndex = 0;
       userAnswers = {};
       render();
@@ -464,9 +431,10 @@ function launchCameraMode(mode) {
             <div>
               <span class="text-xs font-bold uppercase tracking-wider text-[#573d2b] bg-[#ebdcd0] px-3 py-1 rounded-full">${l.subject.en} • ${selectedClass}</span>
               <h1 class="text-3xl font-bold text-[#2a1b12] mt-2">${l.title.en}</h1>
-              <p class="text-sm text-[#684f3e]">${l.title.hi}</p>
+              ${l.title.hi && l.title.hi !== l.title.en ? `<p class="text-sm text-[#684f3e]">${l.title.hi}</p>` : ''}
             </div>
 
+            ${l.video ? `
             <div class="card p-4 bg-[#1b120b] text-[#f6f0e6] rounded-xl space-y-3 border-none">
               <div class="flex justify-between items-center text-xs text-[#d8c3b3]">
                 <span class="font-bold">🎥 Pre-recorded Offline Video Lesson</span>
@@ -478,15 +446,18 @@ function launchCameraMode(mode) {
                 Your browser does not support offline video playback.
               </video>
             </div>
+            ` : ''}
 
             <div class="space-y-4 pt-2">
-              <h3 class="text-xl font-bold text-[#2a1b12]">Key Concepts Summary</h3>
-              ${l.pages.map((p, idx) => `
-                <div class="p-4 bg-[#fbf8f3] rounded-xl border border-[#e8ded3]">
-                  <p class="text-lg leading-relaxed text-[#2a1b12] font-medium">${p.text.en}</p>
-                  <p class="text-md text-[#684f3e] mt-2">${p.text.hi}</p>
+              <h3 class="text-xl font-bold text-[#2a1b12]">Lesson Notes</h3>
+              ${l.pages.length ? l.pages.map((p, idx) => `
+                <div class="p-4 bg-[#fbf8f3] rounded-xl border border-[#e8ded3] space-y-3">
+                  ${p.title ? `<h4 class="text-lg font-bold text-[#42291a]">${idx + 1}. ${p.title.en}</h4>` : ''}
+                  ${p.diagram ? `<div class="bg-white rounded-xl border border-[#e8ded3] p-2 flex justify-center overflow-x-auto">${p.diagram}</div>` : ''}
+                  <p class="text-lg leading-relaxed text-[#2a1b12] whitespace-pre-line">${p.text.en}</p>
+                  ${p.text.hi && p.text.hi !== p.text.en ? `<p class="text-md text-[#684f3e]">${p.text.hi}</p>` : ''}
                 </div>
-              `).join('')}
+              `).join('') : `<div class="p-4 bg-[#fbf8f3] rounded-xl border border-[#e8ded3]"><p class="text-md text-[#684f3e]">📝 Notes for this chapter are coming soon. You can already practise with the 10-question quiz below.</p></div>`}
             </div>
 
             <div class="pt-4 border-t border-[#e2d4c0]">
@@ -537,14 +508,14 @@ function launchCameraMode(mode) {
           </div>
 
           <div class="space-y-4 bg-[#fcf9f5] p-5 rounded-2xl border border-[#e8ded3]">
-            <h2 class="font-bold text-xl text-[#2a1b12]">${q.q.en}</h2>
-            <p class="text-sm text-[#684f3e]">${q.q.hi}</p>
+            <h2 class="font-bold text-xl text-[#2a1b12]">${esc(String(q.q.en).replace(/^\s*\d+\.\s*/, ''))}</h2>
+            ${q.q.hi && q.q.hi !== q.q.en ? `<p class="text-sm text-[#684f3e]">${esc(q.q.hi)}</p>` : ''}
 
             <div class="space-y-3 pt-2">
               ${quizOrder(l.id, currentQuizIndex, q.choices.en.length).map((ci, pos) => { const c = String(q.choices.en[ci]).replace(/^[A-Fa-f][).]\s*/, ''); return `
                 <label onclick="selectQuizAnswer(${ci})" class="flex items-center space-x-3 p-4 rounded-xl border cursor-pointer transition-all duration-150 ${selectedChoice === ci ? 'bg-[#ebdcd0] border-[#42291a] font-bold text-[#2a1b12] shadow-sm' : 'bg-white border-[#e0d3c1] hover:bg-[#f5ebe0] text-[#2a1b12]'}">
                   <input type="radio" name="quiz_opt" value="${ci}" ${selectedChoice === ci ? 'checked' : ''} class="w-5 h-5 accent-[#42291a]">
-                  <span class="text-md">${'ABCDEF'[pos]}) ${c}</span>
+                  <span class="text-md">${'ABCDEF'[pos]}) ${esc(c)}</span>
                 </label>
               `; }).join('')}
             </div>
@@ -727,8 +698,86 @@ function launchCameraMode(mode) {
       return l ? l.title.en : id;
     }
 
+    function teacherLiveHtml() {
+      const a = appData.analytics || { count: 0, avg: null, needHelp: [], missed: [], results: [] };
+      const cleanQ = (s) => String(s || '').replace(/^\s*\d+\.\s*/, '');
+      const questionOf = (m) => {
+        const l = (appData.lessons || []).find((x) => x.id === m.lessonId);
+        const q = l && l.quiz && l.quiz[m.q];
+        return q ? cleanQ(q.q.en) : 'Question ' + (m.q + 1);
+      };
+      const avgTxt = a.avg === null || a.avg === undefined ? '–' : a.avg + '%';
+      const needHelp = a.needHelp || [];
+      const missed = a.missed || [];
+      const results = a.results || [];
+      const tile = (label, value, tone) => `
+        <div class="card p-4 text-center">
+          <p class="text-3xl font-bold ${tone}">${value}</p>
+          <p class="text-xs font-bold uppercase tracking-wide text-[#684f3e] mt-1">${label}</p>
+        </div>`;
+      return `
+        <div class="grid grid-cols-3 gap-3">
+          ${tile('Class average', avgTxt, 'text-[#2a1b12]')}
+          ${tile('Quizzes done', a.count || 0, 'text-[#2a1b12]')}
+          ${tile('Need help', needHelp.length, needHelp.length ? 'text-rose-800' : 'text-emerald-800')}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="card p-4">
+            <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Needs help (below 50%)</h3>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
+              ${needHelp.length ? needHelp.map(r => `
+                <div class="p-2.5 bg-[#f8e3dc] rounded-lg flex justify-between items-center gap-2">
+                  <span class="font-bold text-[#2a1b12]">${esc(r.name)}<span class="block text-xs font-normal text-[#684f3e]">${esc(lessonTitle(r.lessonId))}</span></span>
+                  <span class="text-sm font-bold text-rose-800">${r.pct}%</span>
+                </div>`).join('') : '<p class="text-sm text-[#8c7363]">Nobody is below 50% right now.</p>'}
+            </div>
+          </div>
+
+          <div class="card p-4">
+            <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Most-missed questions</h3>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
+              ${missed.length ? missed.map(m => `
+                <div class="p-2.5 bg-[#f3e8db] rounded-lg">
+                  <p class="text-sm font-bold text-[#2a1b12]">${esc(questionOf(m))}</p>
+                  <p class="text-xs text-[#684f3e] mt-1">${m.pct}% got it wrong (${m.wrong} of ${m.seen}) · ${esc(lessonTitle(m.lessonId))}</p>
+                </div>`).join('') : '<p class="text-sm text-[#8c7363]">Appears once students submit quizzes.</p>'}
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+            <h3 class="font-bold text-lg text-[#2a1b12]">Recorded Results (${results.length})</h3>
+            <a href="/api/report.csv" download class="btn-brown text-sm px-4 py-2 rounded-xl font-bold cursor-pointer hover:opacity-90 transition">⬇ Download report (CSV)</a>
+          </div>
+          <div class="space-y-2 max-h-56 overflow-y-auto">
+            ${results.length ? results.map(r => `
+              <div class="p-2.5 bg-[#f3e8db] rounded-lg flex justify-between items-center gap-2">
+                <span class="font-bold text-[#2a1b12]">${esc(r.name)}<span class="block text-xs font-normal text-[#684f3e]">${esc(lessonTitle(r.lessonId))}</span></span>
+                <span class="text-xs font-mono font-bold ${r.pct >= 50 ? 'text-emerald-800' : 'text-rose-800'}">${r.score}/${r.total} · ${r.pct}%</span>
+              </div>`).join('') : '<p class="text-sm text-[#8c7363]">No results recorded yet.</p>'}
+          </div>
+        </div>
+      `;
+    }
+
+    async function refreshTeacherLive() {
+      const box = document.getElementById('teacher-live');
+      if (!box || role !== 'teacher') return;
+      try {
+        const res = await fetch('/api/analytics');
+        const d = await res.json();
+        appData.analytics = d.analytics;
+        appData.pendingSync = d.pendingSync;
+        box.innerHTML = teacherLiveHtml();
+        const p = document.getElementById('pending-count');
+        if (p) p.textContent = d.pendingSync;
+      } catch (e) { /* hub busy: try again on the next tick */ }
+    }
+    setInterval(refreshTeacherLive, 4000);
+
     function renderTeacherView(container) {
-      const recorded = (appData.analytics && appData.analytics.results) || [];
       container.innerHTML = `
         <div class="space-y-6">
           <div class="card p-6 bg-[#1a100a] text-[#fdfbf7] space-y-2 border-2 border-[#3a2517]">
@@ -758,28 +807,17 @@ function launchCameraMode(mode) {
                 </button>
               </div>
             </div>
-            
+
             <div id="qr-reader" class="w-full max-w-md mx-auto hidden rounded-xl overflow-hidden border-2 border-[#8c5a3c] bg-[#1a100a] p-2 text-[#fdfbf7]"></div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="card p-4">
-              <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Recorded Results (${recorded.length})</h3>
-              <div class="space-y-2 max-h-48 overflow-y-auto">
-                ${recorded.length > 0 ? recorded.map(r => `
-                  <div class="p-2.5 bg-[#f3e8db] rounded-lg flex justify-between items-center gap-2">
-                    <span class="font-bold text-[#2a1b12]">${esc(r.name)}<span class="block text-xs font-normal text-[#684f3e]">${esc(lessonTitle(r.lessonId))}</span></span>
-                    <span class="text-xs font-mono font-bold text-[#573d2b]">${r.score}/${r.total}</span>
-                  </div>
-                `).join('') : '<p class="text-sm text-[#8c7363]">No results recorded yet.</p>'}
-              </div>
-            </div>
+          <h2 class="text-2xl font-bold text-[#2a1b12]">Class Insights</h2>
+          <div id="teacher-live" class="space-y-4">${teacherLiveHtml()}</div>
 
-            <div class="card p-4">
-              <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Cloud Sync</h3>
-              <p class="text-sm text-[#684f3e]">Pending offline attempts: <strong class="text-[#2a1b12]">${appData.pendingSync || 0}</strong></p>
-              <button onclick="triggerSync()" class="mt-4 btn-brown text-sm px-4 py-2 rounded-xl font-bold cursor-pointer hover:opacity-90 transition">Simulate Town Signal Sync</button>
-            </div>
+          <div class="card p-4">
+            <h3 class="font-bold text-lg text-[#2a1b12] mb-2">Cloud Sync</h3>
+            <p class="text-sm text-[#684f3e]">Pending offline attempts: <strong id="pending-count" class="text-[#2a1b12]">${appData.pendingSync || 0}</strong></p>
+            <button onclick="triggerSync()" class="mt-4 btn-brown text-sm px-4 py-2 rounded-xl font-bold cursor-pointer hover:opacity-90 transition">Simulate Town Signal Sync</button>
           </div>
         </div>
       `;
